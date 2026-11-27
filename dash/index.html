@@ -1,0 +1,64 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>KENES · дашборд</title>
+<style>
+:root{--bg:#0d1014;--card:#141a21;--line:#232c36;--tx:#e8edf2;--mu:#8a96a3;--am:#f2a33a;--gr:#3ccf8e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:18px}
+h1{font:800 20px ui-monospace,monospace;letter-spacing:.08em;margin:0}h1 span{color:var(--am)}
+.top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.mu{color:var(--mu);font-size:12.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font-size:13px;margin:0 0 10px;color:var(--mu);text-transform:uppercase;letter-spacing:.06em}
+.kp{display:flex;gap:10px;flex-wrap:wrap}.kp div{border:1px solid var(--line);border-radius:10px;padding:8px 14px}.kp b{font-size:22px;display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 4px;border-top:1px solid var(--line);vertical-align:top}td.n{text-align:right;font-family:ui-monospace,monospace;white-space:nowrap}
+.bars{display:flex;gap:4px;align-items:flex-end;height:110px}.bars div{flex:1;background:var(--am);border-radius:3px 3px 0 0;position:relative;min-height:2px}
+.bars span{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--mu)}.bars i{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10px;font-style:normal}
+input,button{padding:9px 11px;border-radius:9px;border:1px solid #2a3440;background:#0f1419;color:var(--tx);font-size:14px}button{background:var(--am);color:#111;font-weight:700;border:0;cursor:pointer}
+#gate{max-width:340px;margin:18vh auto}#gate input{width:100%;margin:10px 0}.err{color:#ff7b72;min-height:18px}
+</style></head><body>
+<div id="gate" class="card"><h1>KE<span>NES</span> · дашборд</h1><div class="mu">Внутренняя статистика. Отдельный пароль.</div>
+<input id="k" type="password" placeholder="Пароль дашборда" autofocus><button id="go" style="width:100%">Открыть</button><div class="err" id="e"></div></div>
+<div class="wrap" id="app" hidden>
+ <div class="top"><h1>KE<span>NES</span> · дашборд</h1><input type="date" id="day"><span class="mu" id="upd"></span><span style="flex:1"></span><button id="out" style="background:#2a3440;color:var(--tx)">Выйти</button></div>
+ <div class="grid">
+  <div class="card"><h2>Сегодня</h2><div class="kp" id="kp"></div></div>
+  <div class="card"><h2>Посетители за 14 дней</h2><div class="bars" id="bars"></div><div style="height:16px"></div></div>
+  <div class="card"><h2>🌍 Откуда (по сети Cloudflare)</h2><table id="cc"></table></div>
+  <div class="card"><h2>🧭 Выбранная страна и язык</h2><table id="vis"></table></div>
+  <div class="card"><h2>📑 Какие разделы открывали</h2><table id="route"></table></div>
+  <div class="card"><h2>👤 Чьи досье смотрели</h2><table id="person"></table></div>
+  <div class="card"><h2>🏛 Какие советы директоров открывали</h2><table id="board"></table></div>
+  <div class="card"><h2>🗺 Регионы и институты</h2><table id="region"></table></div>
+  <div class="card"><h2>🔎 Что искали</h2><table id="search"></table></div>
+  <div class="card"><h2>📅 Мероприятия и дни рождения</h2><table id="evbd"></table></div>
+  <div class="card"><h2>🔗 На какие сайты уходили</h2><table id="outl"></table></div>
+  <div class="card" style="grid-column:1/-1"><h2>Последние действия</h2><table id="last"></table></div>
+ </div>
+ <p class="mu">Хранится анонимно: код сессии, страна по сети Cloudflare, действие. Без IP, имён и cookies. Данные обновляются раз в минуту.</p>
+</div>
+<script>
+const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FL=cc=>cc&&cc.length===2?String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt())):'🏳';
+const RN={pulse:'Главная',appts:'Назначения',boards:'Советы директоров',quasi:'Квазигоссектор',law:'Законы',map:'Карта регионов',inst:'Институты КУ',orgs:'Организации',events:'Мероприятия',world:'Мир',ppl:'Люди',edu:'Обучение / видео',kb:'База знаний',arch:'Архив'};
+let KEY='',DAY='';
+async function load(){const r=await fetch('/api/dash'+(DAY?'?day='+DAY:''),{headers:{'x-key':KEY}});if(r.status===403)throw 403;const d=await r.json();render(d)}
+function tbl(id,rows,fmt){$(id).innerHTML=rows.length?rows.map(fmt).join(''):'<tr><td class="mu">Пока нет данных</td></tr>'}
+function render(d){if(!DAY){$('day').value=d.day}
+ $('upd').textContent='обновлено '+new Date().toLocaleTimeString('ru-RU');
+ const td=d.series.find(x=>x.day===d.day)||{u:0,n:0};
+ $('kp').innerHTML=[[td.u,'посетителей'],[td.n,'действий'],[d.cc.length,'стран'],[d.total?.u||0,'всего с '+(d.total?.since||'—')]].map(k=>`<div><b>${k[0]}</b><span class="mu">${esc(k[1])}</span></div>`).join('');
+ const mx=Math.max(1,...d.series.map(x=>x.u));const days=[];for(let i=13;i>=0;i--){const t=new Date(d.day+'T12:00:00Z');t.setUTCDate(t.getUTCDate()-i);days.push(t.toISOString().slice(0,10))}
+ $('bars').innerHTML=days.map(x=>{const s=d.series.find(y=>y.day===x);const u=s?s.u:0;return `<div style="height:${u/mx*100}%;${x===d.day?'':'opacity:.55'}"><i>${u||''}</i><span>${x.slice(8)}</span></div>`}).join('');
+ tbl('cc',d.cc,x=>`<tr><td>${FL(x.cc)} ${esc(x.cc||'неизвестно')}</td><td class="n">${x.u}</td></tr>`);
+ tbl('vis',d.visits,x=>`<tr><td>${esc(x.d)}</td><td class="n">${x.u}</td></tr>`);
+ const g=k=>d.evs.filter(x=>x.ev===k);const row=(x,name)=>`<tr><td>${esc(name||x.d)}</td><td class="n">${x.n} раз · ${x.u} чел.</td></tr>`;
+ tbl('route',g('route'),x=>row(x,RN[x.d]||x.d));tbl('person',g('person'),x=>row(x));tbl('board',g('board'),x=>row(x));
+ tbl('region',[...g('region'),...g('org')],x=>row(x,(x.ev==='org'?'🏢 ':'📍 ')+x.d));tbl('search',g('search'),x=>row(x,'«'+x.d+'»'));
+ tbl('evbd',[...g('event'),...g('bday'),...g('pdf')],x=>row(x,(x.ev==='bday'?'🎂 ':x.ev==='pdf'?'📄 ':'📅 ')+x.d));tbl('outl',g('out'),x=>row(x));
+ const EVN={visit:'вход',route:'раздел',person:'досье',board:'совет',region:'регион',org:'институт',search:'поиск',bday:'день рождения',event:'мероприятие',out:'переход',lang:'язык',country:'страна',login:'вход по паролю',pdf:'PDF'};
+ tbl('last',d.last,x=>`<tr><td class="mu" style="white-space:nowrap">${new Date(x.ts+5*3600e3).toISOString().slice(11,16)}</td><td>${FL(x.cc)}</td><td class="mu">${esc(x.sid.slice(0,6))}</td><td>${esc(EVN[x.ev]||x.ev)}</td><td>${esc(x.ev==='route'?(RN[x.d]||x.d):x.d)}</td></tr>`)}
+async function start(k){KEY=k;try{await load();sessionStorage.setItem('kdk',k);$('gate').hidden=true;$('app').hidden=false;setInterval(()=>load().catch(()=>{}),60000)}catch(e){$('e').textContent=e===403?'Неверный пароль':'Сервер статистики пока не отвечает'}}
+$('go').onclick=()=>start($('k').value.trim());$('k').onkeydown=e=>{if(e.key==='Enter')start($('k').value.trim())};
+$('day').onchange=()=>{DAY=$('day').value;load()};$('out').onclick=()=>{sessionStorage.removeItem('kdk');location.reload()};
+const s=sessionStorage.getItem('kdk');if(s)start(s);
+</script></body></html>

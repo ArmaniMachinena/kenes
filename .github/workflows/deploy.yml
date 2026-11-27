@@ -1,0 +1,35 @@
+name: deploy-cloudflare
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Check secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Settings → Secrets → Actions"; exit 1; fi
+      - name: Prepare site
+        run: |
+          mkdir -p site/dash && cp index.html robots.txt site/ && cp dash/index.html site/dash/
+          printf '/dash/*\n  X-Robots-Tag: noindex, nofollow\n  Cache-Control: no-store\n/*\n  X-Robots-Tag: noindex, nofollow\n' > site/_headers
+      - name: D1 database
+        run: |
+          npm i -g wrangler@3 >/dev/null 2>&1
+          ID=$(wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s);const x=a.find(d=>d.name==="kenes-stats");console.log(x?x.uuid:"")})')
+          if [ -z "$ID" ]; then wrangler d1 create kenes-stats >/dev/null; ID=$(wrangler d1 list --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{console.log(JSON.parse(s).find(d=>d.name==="kenes-stats").uuid)})'); fi
+          printf 'name = "kenes"\npages_build_output_dir = "site"\ncompatibility_date = "2024-11-01"\n\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "kenes-stats"\ndatabase_id = "%s"\n' "$ID" > wrangler.toml
+          wrangler d1 execute kenes-stats --remote --command "CREATE TABLE IF NOT EXISTS ev(id INTEGER PRIMARY KEY, day TEXT, ts INTEGER, sid TEXT, cc TEXT, ev TEXT, d TEXT); CREATE INDEX IF NOT EXISTS ev_day ON ev(day);"
+      - name: Project and dashboard password
+        env: { KENES_DASH_KEY: "${{ secrets.KENES_DASH_KEY }}" }
+        run: |
+          wrangler pages project create kenes --production-branch main 2>/dev/null || true
+          if [ -n "$KENES_DASH_KEY" ]; then printf '%s' "$KENES_DASH_KEY" | wrangler pages secret put DASH_KEY --project-name kenes; else echo "::warning::Add KENES_DASH_KEY secret to open /dash"; fi
+      - name: Deploy
+        run: wrangler pages deploy site --project-name kenes --branch main --commit-dirty=true
